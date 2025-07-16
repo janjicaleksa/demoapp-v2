@@ -1,11 +1,16 @@
 import pandas as pd
 import json
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+import requests
+import os
+from datetime import datetime
 
 class AIProcessor:
     def __init__(self, processed_dir: str):
         self.processed_dir = Path(processed_dir)
+        self.api_key = os.getenv('AZURE_AI_FOUNDRY_API_KEY')
+        self.api_endpoint = os.getenv('AZURE_AI_FOUNDRY_ENDPOINT')
 
     def load_json_files(self) -> List[Dict[str, Any]]:
         """Load all JSON files from the processed directory."""
@@ -65,6 +70,109 @@ class AIProcessor:
                     combined_data.append(processed_row)
         
         return pd.DataFrame(combined_data)
+
+    def _call_azure_ai_foundry(self, table_data: Dict[str, Any], table_type: str) -> Dict[str, Any]:
+        """
+        Call Azure AI Foundry API to process table data
+        
+        Args:
+            table_data: Dictionary containing table data
+            table_type: Either 'kupci' or 'dobavljaci'
+        """
+        if not self.api_key or not self.api_endpoint:
+            raise ValueError("Azure AI Foundry API key and endpoint must be set in environment variables")
+
+        headers = {
+            'Authorization': f'Bearer {self.api_key}',
+            'Content-Type': 'application/json'
+        }
+
+        payload = {
+            'table_data': table_data,
+            'table_type': table_type
+        }
+
+        response = requests.post(
+            self.api_endpoint,
+            headers=headers,
+            json=payload
+        )
+
+        if response.status_code != 200:
+            raise Exception(f"Azure AI Foundry API call failed: {response.text}")
+
+        return response.json()
+
+    def process_kupci_table(self, table_data: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Process Kupci table using Azure AI Foundry
+        """
+        processed_data = self._call_azure_ai_foundry(table_data, 'kupci')
+        df = pd.DataFrame(processed_data['processed_table'])
+        
+        # Save to Excel
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_path = self.processed_dir / f'kupci_processed_{timestamp}.xlsx'
+        df.to_excel(output_path, index=False)
+        
+        return df
+
+    def process_dobavljaci_table(self, table_data: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Process Dobavljaci table using Azure AI Foundry
+        """
+        processed_data = self._call_azure_ai_foundry(table_data, 'dobavljaci')
+        df = pd.DataFrame(processed_data['processed_table'])
+        
+        # Save to Excel
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_path = self.processed_dir / f'dobavljaci_processed_{timestamp}.xlsx'
+        df.to_excel(output_path, index=False)
+        
+        return df
+
+    def process_tables_with_ai(self, table_type: str) -> Dict[str, Any]:
+        """
+        Process either Kupci or Dobavljaci tables using Azure AI Foundry
+        
+        Args:
+            table_type: Either 'kupci' or 'dobavljaci'
+        """
+        try:
+            # Load all JSON files
+            all_data = self.load_json_files()
+            if not all_data:
+                return {
+                    'status': 'error',
+                    'message': 'No processed files found'
+                }
+
+            # Process based on table type
+            if table_type.lower() == 'kupci':
+                df = self.process_kupci_table({'tables': all_data})
+            elif table_type.lower() == 'dobavljaci':
+                df = self.process_dobavljaci_table({'tables': all_data})
+            else:
+                return {
+                    'status': 'error',
+                    'message': f'Invalid table type: {table_type}'
+                }
+
+            return {
+                'status': 'success',
+                'message': f'Successfully processed {table_type} tables',
+                'summary': {
+                    'total_files': len(all_data),
+                    'total_rows': len(df),
+                    'processed_columns': list(df.columns)
+                }
+            }
+
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f'Error processing {table_type} tables: {str(e)}'
+            }
 
     def process_tables(self) -> Dict[str, Any]:
         """Process and combine all tables from JSON files."""
