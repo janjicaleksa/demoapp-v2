@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Extraction and Processing</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .drop-zone {
+            border: 2px dashed #cbd5e0;
+            transition: all 0.3s ease;
+        }
+        .drop-zone.dragover {
+            border-color: #4299e1;
+            background-color: #ebf8ff;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen p-6">
+        <div class="max-w-4xl mx-auto">
+            <header class="text-center mb-12">
+                <h1 class="text-4xl font-bold text-gray-900 mb-4">Table Extraction and Processing</h1>
+                <p class="text-lg text-gray-600">Upload your files containing tables and let AI process them for you</p>
+            </header>
+
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div id="upload-section" class="mb-8">
+                    <div class="drop-zone p-8 text-center rounded-lg cursor-pointer">
+                        <div class="mb-4">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <p class="text-gray-600 mb-2">Drag and drop your files here</p>
+                        <p class="text-sm text-gray-500">or</p>
+                        <button class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">
+                            Browse Files
+                        </button>
+                        <input type="file" id="file-input" multiple class="hidden" accept=".docx,.pdf,.xlsx">
+                    </div>
+                </div>
+
+                <div id="file-list" class="mb-8 hidden">
+                    <h3 class="text-lg font-semibold mb-4">Uploaded Files</h3>
+                    <ul id="uploaded-files" class="space-y-2"></ul>
+                </div>
+
+                <div class="text-center">
+                    <button id="process-btn" class="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition hidden">
+                        Click here to start processing
+                    </button>
+                </div>
+            </div>
+
+            <div id="result-section" class="mt-8 bg-white rounded-lg shadow-lg p-6 hidden">
+                <h3 class="text-lg font-semibold mb-4">Processing Result</h3>
+                <div id="result-content" class="prose"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.querySelector('.drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileList = document.getElementById('file-list');
+        const uploadedFiles = document.getElementById('uploaded-files');
+        const processBtn = document.getElementById('process-btn');
+        const resultSection = document.getElementById('result-section');
+        const resultContent = document.getElementById('result-content');
+
+        // Drag and drop handlers
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            const formData = new FormData();
+            for (const file of files) {
+                formData.append('files', file);
+            }
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                fileList.classList.remove('hidden');
+                processBtn.classList.remove('hidden');
+                
+                uploadedFiles.innerHTML = data.files.map(filename => `
+                    <li class="flex items-center p-2 bg-gray-50 rounded">
+                        <svg class="h-5 w-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        ${filename}
+                    </li>
+                `).join('');
+            })
+            .catch(error => {
+                console.error('Error uploading files:', error);
+                alert('Error uploading files. Please try again.');
+            });
+        }
+
+        processBtn.addEventListener('click', () => {
+            processBtn.disabled = true;
+            processBtn.textContent = 'Processing...';
+
+            fetch('/process', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                resultSection.classList.remove('hidden');
+                resultContent.innerHTML = `
+                    <div class="text-center">
+                        <p class="text-lg text-gray-700">${data.message}</p>
+                        <p class="text-sm text-gray-500">Status: ${data.status}</p>
+                    </div>
+                `;
+                processBtn.disabled = false;
+                processBtn.textContent = 'Click here to start processing';
+            })
+            .catch(error => {
+                console.error('Error processing files:', error);
+                alert('Error processing files. Please try again.');
+                processBtn.disabled = false;
+                processBtn.textContent = 'Click here to start processing';
+            });
+        });
+    </script>
+</body>
+</html> 
