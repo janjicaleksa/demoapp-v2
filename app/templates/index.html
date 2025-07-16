@@ -14,42 +14,84 @@
             border-color: #4299e1;
             background-color: #ebf8ff;
         }
+        .drop-zone.uploaded {
+            border-color: #48bb78;
+            background-color: #f0fff4;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
     <div class="min-h-screen p-6">
-        <div class="max-w-4xl mx-auto">
+        <div class="max-w-6xl mx-auto">
             <header class="text-center mb-12">
                 <h1 class="text-4xl font-bold text-gray-900 mb-4">Table Extraction and Processing</h1>
                 <p class="text-lg text-gray-600">Upload your files containing tables and let AI process them for you</p>
             </header>
 
             <div class="bg-white rounded-lg shadow-lg p-6">
-                <div id="upload-section" class="mb-8">
-                    <div class="drop-zone p-8 text-center rounded-lg cursor-pointer">
-                        <div class="mb-4">
-                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
+                <!-- Client Name Input Section -->
+                <div id="client-section" class="mb-8">
+                    <div class="max-w-md mx-auto">
+                        <label for="client-name" class="block text-sm font-medium text-gray-700 mb-2">
+                            Enter Client's Name
+                        </label>
+                        <div class="flex gap-4">
+                            <input type="text" id="client-name" 
+                                class="flex-1 rounded-md border border-gray-300 shadow-sm px-4 py-2 focus:ring-blue-500 focus:border-blue-500" 
+                                placeholder="Enter client name here">
+                            <button id="create-folder-btn" 
+                                class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition">
+                                Create Folder
+                            </button>
                         </div>
-                        <p class="text-gray-600 mb-2">Drag and drop your files here</p>
-                        <p class="text-sm text-gray-500">or</p>
-                        <button class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">
-                            Browse Files
-                        </button>
-                        <input type="file" id="file-input" multiple class="hidden" accept=".docx,.pdf,.xlsx">
                     </div>
                 </div>
 
-                <div id="file-list" class="mb-8 hidden">
-                    <h3 class="text-lg font-semibold mb-4">Uploaded Files</h3>
-                    <ul id="uploaded-files" class="space-y-2"></ul>
-                </div>
+                <!-- Upload Section (initially hidden) -->
+                <div id="upload-section" class="hidden">
+                    <h3 class="text-lg font-semibold mb-4 text-center">Upload Files for: <span id="client-name-display" class="text-blue-600"></span></h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <!-- Kupci Section -->
+                        <div class="space-y-6">
+                            <h4 class="text-lg font-medium text-gray-900">Kupci</h4>
+                            
+                            <div class="drop-zone p-6 text-center rounded-lg cursor-pointer" data-type="kraj-fiskalne-kupci">
+                                <p class="text-gray-600 mb-2">Kraj fiskalne godine - kupci</p>
+                                <p class="text-sm text-gray-500">Drop file here or click to browse</p>
+                                <input type="file" class="file-input hidden" accept=".docx,.pdf,.xlsx">
+                            </div>
 
-                <div class="text-center">
-                    <button id="process-btn" class="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition hidden">
-                        Click here to start processing
-                    </button>
+                            <div class="drop-zone p-6 text-center rounded-lg cursor-pointer" data-type="presek-bilansa-kupci">
+                                <p class="text-gray-600 mb-2">Presek bilansa - kupci</p>
+                                <p class="text-sm text-gray-500">Drop file here or click to browse</p>
+                                <input type="file" class="file-input hidden" accept=".docx,.pdf,.xlsx">
+                            </div>
+                        </div>
+
+                        <!-- Prodavci Section -->
+                        <div class="space-y-6">
+                            <h4 class="text-lg font-medium text-gray-900">Prodavci</h4>
+                            
+                            <div class="drop-zone p-6 text-center rounded-lg cursor-pointer" data-type="kraj-fiskalne-prodavci">
+                                <p class="text-gray-600 mb-2">Kraj fiskalne godine - Prodavci</p>
+                                <p class="text-sm text-gray-500">Drop file here or click to browse</p>
+                                <input type="file" class="file-input hidden" accept=".docx,.pdf,.xlsx">
+                            </div>
+
+                            <div class="drop-zone p-6 text-center rounded-lg cursor-pointer" data-type="presek-bilansa-prodavci">
+                                <p class="text-gray-600 mb-2">Presek bilansa - prodavci</p>
+                                <p class="text-sm text-gray-500">Drop file here or click to browse</p>
+                                <input type="file" class="file-input hidden" accept=".docx,.pdf,.xlsx">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-center">
+                        <button id="process-btn" class="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition hidden">
+                            Process All Files
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -61,77 +103,125 @@
     </div>
 
     <script>
-        const dropZone = document.querySelector('.drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const fileList = document.getElementById('file-list');
-        const uploadedFiles = document.getElementById('uploaded-files');
+        let currentClient = null;
+        const uploadSection = document.getElementById('upload-section');
+        const clientNameInput = document.getElementById('client-name');
+        const createFolderBtn = document.getElementById('create-folder-btn');
+        const clientNameDisplay = document.getElementById('client-name-display');
         const processBtn = document.getElementById('process-btn');
         const resultSection = document.getElementById('result-section');
         const resultContent = document.getElementById('result-content');
 
-        // Drag and drop handlers
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            handleFiles(e.dataTransfer.files);
-        });
-
-        dropZone.addEventListener('click', () => {
-            fileInput.click();
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            handleFiles(e.target.files);
-        });
-
-        function handleFiles(files) {
-            const formData = new FormData();
-            for (const file of files) {
-                formData.append('files', file);
+        // Create client folder handler
+        createFolderBtn.addEventListener('click', async () => {
+            const clientName = clientNameInput.value.trim();
+            if (!clientName) {
+                alert('Please enter a client name');
+                return;
             }
 
-            fetch('/upload', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                fileList.classList.remove('hidden');
-                processBtn.classList.remove('hidden');
+            const formData = new FormData();
+            formData.append('client_name', clientName);
+
+            try {
+                const response = await fetch('/create-client-folder', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
                 
-                uploadedFiles.innerHTML = data.files.map(filename => `
-                    <li class="flex items-center p-2 bg-gray-50 rounded">
-                        <svg class="h-5 w-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                        ${filename}
-                    </li>
-                `).join('');
-            })
-            .catch(error => {
-                console.error('Error uploading files:', error);
-                alert('Error uploading files. Please try again.');
+                if (data.status === 'success') {
+                    currentClient = data.client_name;
+                    clientNameDisplay.textContent = clientName;
+                    uploadSection.classList.remove('hidden');
+                    clientNameInput.disabled = true;
+                    createFolderBtn.disabled = true;
+                }
+            } catch (error) {
+                console.error('Error creating client folder:', error);
+                alert('Error creating client folder. Please try again.');
+            }
+        });
+
+        // Setup drop zones
+        document.querySelectorAll('.drop-zone').forEach(dropZone => {
+            const fileInput = dropZone.querySelector('.file-input');
+            const fileType = dropZone.dataset.type;
+
+            // Drag and drop handlers
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
             });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('dragover');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    handleFile(e.dataTransfer.files[0], fileType, dropZone);
+                }
+            });
+
+            dropZone.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length) {
+                    handleFile(e.target.files[0], fileType, dropZone);
+                }
+            });
+        });
+
+        async function handleFile(file, fileType, dropZone) {
+            if (!currentClient) {
+                alert('Please create a client folder first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`/upload/${currentClient}/${fileType}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    dropZone.classList.add('uploaded');
+                    updateProcessButton();
+                }
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                alert('Error uploading file. Please try again.');
+            }
         }
 
-        processBtn.addEventListener('click', () => {
+        function updateProcessButton() {
+            const uploadedFiles = document.querySelectorAll('.drop-zone.uploaded').length;
+            if (uploadedFiles > 0) {
+                processBtn.classList.remove('hidden');
+            }
+        }
+
+        processBtn.addEventListener('click', async () => {
+            if (!currentClient) return;
+
             processBtn.disabled = true;
             processBtn.textContent = 'Processing...';
 
-            fetch('/process', {
-                method: 'POST'
-            })
-            .then(response => response.json())
-            .then(data => {
+            try {
+                const response = await fetch(`/process/${currentClient}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
                 resultSection.classList.remove('hidden');
                 resultContent.innerHTML = `
                     <div class="text-center">
@@ -139,15 +229,13 @@
                         <p class="text-sm text-gray-500">Status: ${data.status}</p>
                     </div>
                 `;
-                processBtn.disabled = false;
-                processBtn.textContent = 'Click here to start processing';
-            })
-            .catch(error => {
+            } catch (error) {
                 console.error('Error processing files:', error);
                 alert('Error processing files. Please try again.');
+            } finally {
                 processBtn.disabled = false;
-                processBtn.textContent = 'Click here to start processing';
-            });
+                processBtn.textContent = 'Process All Files';
+            }
         });
     </script>
 </body>
