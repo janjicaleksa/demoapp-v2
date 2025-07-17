@@ -131,12 +131,12 @@ class AIProcessor:
         
         return df
 
-    def process_tables_with_ai(self, table_type: str) -> Dict[str, Any]:
+    def process_tables_with_ai(self, table_type: Optional[str] = None) -> Dict[str, Any]:
         """
-        Process either Kupci or Dobavljaci tables using Azure AI Foundry
+        Process either Kupci or Dobavljaci tables using Azure AI Foundry, or both if table_type is None
         
         Args:
-            table_type: Either 'kupci' or 'dobavljaci'
+            table_type: Optional; Either 'kupci', 'dobavljaci', or None to process both
         """
         try:
             # Load all JSON files
@@ -147,31 +147,63 @@ class AIProcessor:
                     'message': 'No processed files found'
                 }
 
-            # Process based on table type
-            if table_type.lower() == 'kupci':
-                df = self.process_kupci_table({'tables': all_data})
-            elif table_type.lower() == 'dobavljaci':
-                df = self.process_dobavljaci_table({'tables': all_data})
-            else:
-                return {
-                    'status': 'error',
-                    'message': f'Invalid table type: {table_type}'
+            results = {}
+            output_files = {}
+
+            # Process tables based on type
+            if table_type is None or table_type.lower() == 'kupci':
+                kupci_df = self.process_kupci_table({'tables': all_data})
+                results['kupci'] = {
+                    'total_rows': len(kupci_df),
+                    'processed_columns': list(kupci_df.columns)
                 }
+                # Save Kupci to Excel
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                kupci_path = self.processed_dir / f'kupci_processed_{timestamp}.xlsx'
+                kupci_df.to_excel(kupci_path, index=False)
+                output_files['kupci'] = str(kupci_path)
+
+            if table_type is None or table_type.lower() == 'dobavljaci':
+                dobavljaci_df = self.process_dobavljaci_table({'tables': all_data})
+                results['dobavljaci'] = {
+                    'total_rows': len(dobavljaci_df),
+                    'processed_columns': list(dobavljaci_df.columns)
+                }
+                # Save Dobavljaci to Excel
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                dobavljaci_path = self.processed_dir / f'dobavljaci_processed_{timestamp}.xlsx'
+                dobavljaci_df.to_excel(dobavljaci_path, index=False)
+                output_files['dobavljaci'] = str(dobavljaci_path)
+
+            # If both tables were processed, create a merged file
+            if table_type is None and 'kupci' in results and 'dobavljaci' in results:
+                # Add a type column to each DataFrame
+                kupci_df['type'] = 'kupci'
+                dobavljaci_df['type'] = 'dobavljaci'
+                
+                # Merge the DataFrames
+                merged_df = pd.concat([kupci_df, dobavljaci_df], ignore_index=True)
+                
+                # Save merged result
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                merged_path = self.processed_dir / f'merged_results_{timestamp}.xlsx'
+                merged_df.to_excel(merged_path, index=False)
+                output_files['merged'] = str(merged_path)
 
             return {
                 'status': 'success',
-                'message': f'Successfully processed {table_type} tables',
+                'message': 'Successfully processed tables',
                 'summary': {
                     'total_files': len(all_data),
-                    'total_rows': len(df),
-                    'processed_columns': list(df.columns)
+                    'results': results,
+                    'output_files': output_files
                 }
             }
 
         except Exception as e:
             return {
                 'status': 'error',
-                'message': f'Error processing {table_type} tables: {str(e)}'
+                'message': f'Error processing tables: {str(e)}'
             }
 
     def process_tables(self) -> Dict[str, Any]:

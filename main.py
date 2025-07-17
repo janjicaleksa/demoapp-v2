@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, UploadFile, File, HTTPException, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -7,7 +7,7 @@ import uvicorn
 import os
 from app.services.table_extractor import TableExtractor
 from app.services.ai_processor import AIProcessor
-from typing import Literal
+from typing import Literal, Optional
 
 # Create required directories
 os.makedirs("uploads", exist_ok=True)
@@ -92,8 +92,52 @@ async def upload_file(
         "client_name": client_name
     })
 
+@app.get("/download/json/{client_name}/{filename}")
+async def download_json(client_name: str, filename: str):
+    file_path = Path("processed") / client_name / filename
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+    
+    return FileResponse(
+        path=str(file_path),
+        filename=filename,
+        media_type="application/json"
+    )
+
+@app.get("/download/processed/{client_name}/{filename}")
+async def download_processed(client_name: str, filename: str):
+    file_path = Path("processed") / client_name / filename
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+    
+    media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if filename.endswith('.xlsx') else "text/csv"
+    
+    return FileResponse(
+        path=str(file_path),
+        filename=filename,
+        media_type=media_type
+    )
+
+@app.get("/list/files/{client_name}")
+async def list_files(client_name: str):
+    processed_dir = Path("processed") / client_name
+    
+    if not processed_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Client folder not found: {client_name}")
+    
+    json_files = [f.name for f in processed_dir.glob("*.json")]
+    excel_files = [f.name for f in processed_dir.glob("*.xlsx")]
+    csv_files = [f.name for f in processed_dir.glob("*.csv")]
+    
+    return {
+        "json_files": json_files,
+        "processed_files": excel_files + csv_files
+    }
+
 @app.post("/process/{client_name}")
-async def process_files(client_name: str):
+async def process_files(client_name: str, table_type: Optional[str] = None):
     # Initialize services with client-specific directories
     client_upload_dir = str(Path("uploads") / client_name)
     client_processed_dir = str(Path("processed") / client_name)
@@ -121,7 +165,7 @@ async def process_files(client_name: str):
         )
     
     # Process extracted tables with AI
-    ai_result = ai_processor.process_tables()
+    ai_result = ai_processor.process_tables_with_ai(table_type)
     
     if ai_result['status'] == 'error':
         return JSONResponse(
